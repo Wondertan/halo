@@ -13,7 +13,7 @@ func NewLocalNetwork() *LocalNetwork {
 	return &LocalNetwork{}
 }
 
-func (n *LocalNetwork) Gossip(namespace []byte) (Gossip, error) {
+func (n *LocalNetwork) Gossip(namespace []byte) (consensus.Gossip, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -36,7 +36,7 @@ func (l *LocalGossip) BroadcastVote(ctx context.Context, vote *consensus.Vote) e
 	panic("implement me")
 }
 
-func (l *LocalGossip) Notify(notifiee Notifiee) {
+func (l *LocalGossip) Notify(notifiee consensus.Notifiee) {
 	// TODO implement me
 	panic("implement me")
 }

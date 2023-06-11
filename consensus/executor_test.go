@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cmwaters/halo/consensus"
+	"github.com/cmwaters/halo/consensus" // TODO(@Wondertan): why do we self import? I didn't even know this possible
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,17 +16,11 @@ func TestSoloFinalization(t *testing.T) {
 	defer cancel()
 	executor := consensus.NewExecutor(normalVoteFn, proposeInRound(consensus.InitialRound),
 		quorumPower(1), totalPower(1), time.Second, time.Second, false)
+	executor.ProcessProposal(consensus.InitialRound) // self propose
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- executor.Run(ctx)
-	}()
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case proposalValue := <-executor.Done():
-		require.Equal(t, consensus.InitialRound, proposalValue)
-	}
+	proposalValue, err := executor.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, consensus.InitialRound, proposalValue)
 }
 
 func TestGroupFinalization(t *testing.T) {
@@ -35,20 +29,15 @@ func TestGroupFinalization(t *testing.T) {
 	executor := consensus.NewExecutor(normalVoteFn, proposeInRound(consensus.InitialRound),
 		quorumPower(1), totalPower(1), time.Second, time.Second, false)
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- executor.Run(ctx)
-	}()
+	executor.ProcessProposal(consensus.InitialRound) // self propose
 	executor.ProcessVote(1, 1, 33, consensus.LOCK)
 	executor.ProcessVote(1, 1, 33, consensus.LOCK)
 	executor.ProcessVote(1, 1, 33, consensus.COMMIT)
 	executor.ProcessVote(1, 1, 33, consensus.COMMIT)
-	select {
-	case err := <-errCh:
-		require.NoError(t, err, executor.Trace().String())
-	case proposalValue := <-executor.Done():
-		require.Equal(t, consensus.InitialRound, proposalValue)
-	}
+
+	proposalValue, err := executor.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, consensus.InitialRound, proposalValue)
 }
 
 func TestGroupDelayedFinalization(t *testing.T) {
@@ -56,10 +45,6 @@ func TestGroupDelayedFinalization(t *testing.T) {
 	defer cancel()
 	executor := setupExecutor()
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- executor.Run(ctx)
-	}()
 	// should do nothing because this is for a future
 	// round
 	executor.ProcessVote(2, 0, 66, consensus.COMMIT)
@@ -72,12 +57,10 @@ func TestGroupDelayedFinalization(t *testing.T) {
 	// reveives 2f COMMIT votes and sends +1 COMMIT votes
 	// eventually finalizing
 	executor.ProcessVote(3, 2, 66, consensus.COMMIT)
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case proposalValue := <-executor.Done():
-		require.EqualValues(t, 2, proposalValue)
-	}
+
+	proposalValue, err := executor.Run(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, proposalValue)
 }
 
 func TestTimeoutProposeMoveToNextRound(t *testing.T) {
@@ -85,17 +68,11 @@ func TestTimeoutProposeMoveToNextRound(t *testing.T) {
 	defer cancel()
 	executor := consensus.NewExecutor(normalVoteFn, proposeInRound(consensus.InitialRound+1),
 		quorumPower(1), totalPower(1), time.Second, time.Second, false)
+	executor.ProcessProposal(consensus.InitialRound + 1) // self propose
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- executor.Run(ctx)
-	}()
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case proposalValue := <-executor.Done():
-		require.Equal(t, consensus.InitialRound+1, proposalValue)
-	}
+	proposalValue, err := executor.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, consensus.InitialRound+1, proposalValue)
 }
 
 func proposeInRound(rounds ...uint32) consensus.ProposeFn {

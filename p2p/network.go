@@ -6,24 +6,23 @@ import (
 	"errors"
 
 	"github.com/cmwaters/halo/consensus"
-	"github.com/cmwaters/halo/network"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-var _ network.Network = (*Network)(nil)
+var _ consensus.Network = (*Network)(nil)
 
 type Network struct {
 	ps *pubsub.PubSub
 }
 
-func NewNetwork(ps *pubsub.PubSub) network.Network {
+func NewNetwork(ps *pubsub.PubSub) consensus.Network {
 	return &Network{
 		ps: ps,
 	}
 }
 
-func (pn *Network) Gossip(namespace []byte) (network.Gossip, error) {
+func (pn *Network) Gossip(namespace []byte) (consensus.Gossip, error) {
 	// TODO(@Wondertan): network ID prefix, so that we don't collide with random namespaces
 	//  that turn out to be the same
 	topic, err := pn.ps.Join(string(namespace))
@@ -80,7 +79,7 @@ func (p *Gossip) BroadcastVote(ctx context.Context, vote *consensus.Vote) error 
 	return p.tp.Publish(ctx, data, opt)
 }
 
-func (p *Gossip) Notify(notifiee network.Notifiee) {
+func (p *Gossip) Notify(notifiee consensus.Notifiee) {
 	// error can be safely ignored
 	_ = p.ps.RegisterTopicValidator(p.tp.String(), func(ctx context.Context, _ peer.ID, pmsg *pubsub.Message) pubsub.ValidationResult {
 		var cmsg message
