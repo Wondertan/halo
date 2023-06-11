@@ -78,10 +78,40 @@ func NewExecutor(
 	}
 }
 
+// TODO(@Wondertan): Cleanup constructors mess
+func newExecutor(
+	proposalTimeout,
+	lockDelay time.Duration,
+	enableTracing bool,
+) *Executor {
+	var trace *Trace
+	if enableTracing {
+		trace = newTrace()
+	}
+	return &Executor{
+		inputCh:         make(chan Input, 100),
+		proposalTimeout: proposalTimeout,
+		lockDelay:       lockDelay,
+		trace:           trace,
+	}
+}
+
+func (e *Executor) Update(
+	voteFn VoteFn,
+	proposeFn ProposeFn,
+	selfWeight uint32,
+	totalVotingPower uint64,
+) {
+	e.tally = NewTally(totalVotingPower)
+	e.voteFn = voteFn
+	e.proposeFn = proposeFn
+	e.selfWeight = selfWeight
+}
+
 // Run is the main loop of the Tally. It is responsible for processing all serialized inputs:
 // timeouts, proposals and votes, performing state transitions and producing outputs: votes,
 // proposals and timeouts all according the logic of the consensus protocol.
-func (e *Executor) Run(ctx context.Context) error {
+func (e *Executor) Run(ctx context.Context) (uint32, error) {
 	if e.tally.Phase() == ProposePhase {
 		// upon starting, the Tally signals to propose a value if the process is the
 		// current proposer. The Tally also begins the first timeout
@@ -91,15 +121,11 @@ func (e *Executor) Run(ctx context.Context) error {
 		select {
 		// catch context cancellation
 		case <-ctx.Done():
-			return ctx.Err()
+			return 0, ctx.Err()
 
 		// return an error if any of the outputs failed to execute
 		case err := <-e.errCh:
-			return err
-
-		// return once consensus has finalized
-		case <-e.Done():
-			return nil
+			return 0, err
 
 		// pull the next input from the channel
 		case input := <-e.inputCh:
@@ -114,7 +140,7 @@ func (e *Executor) Run(ctx context.Context) error {
 			// execute the output
 			switch {
 			case output.HasFinalized():
-				e.doneCh <- output.GetFinalizedProposalRound()
+				return output.GetFinalizedProposalRound(), nil
 			case output.IsNone():
 				continue
 			case output.IsProposal():
@@ -126,13 +152,7 @@ func (e *Executor) Run(ctx context.Context) error {
 				e.scheduleLockDelay(e.lockDelay, e.tally.Round())
 			}
 		}
-
 	}
-}
-
-// Done returns a channel that will receive the proposal value upon finalization
-func (e *Executor) Done() <-chan uint32 {
-	return e.doneCh
 }
 
 // ProcessVote queues a vote to be processed by the tally. It assumes that the vote is valid and unique.
@@ -148,7 +168,7 @@ func (e *Executor) ProcessProposal(round uint32) {
 }
 
 // Trace returns the underlying trace. This method is not concurrently safe
-func (e Executor) Trace() *Trace {
+func (e *Executor) Trace() *Trace {
 	return e.trace
 }
 
@@ -178,17 +198,12 @@ func (e *Executor) propose(ctx context.Context, round uint32) {
 		if e.proposeFn == nil {
 			return
 		}
-		proposed, err := e.proposeFn(ctx, round)
+		_, err := e.proposeFn(ctx, round)
 		if err != nil {
 			select {
 			case <-ctx.Done():
-			default:
-				e.errCh <- err
+			case e.errCh <- err:
 			}
-		}
-		if proposed {
-			// queue the nodes own proposal to be processed
-			e.ProcessProposal(round)
 		}
 	}()
 	e.scheduleProposalTimeout(e.proposalTimeout, round)

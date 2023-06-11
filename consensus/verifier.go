@@ -18,19 +18,17 @@ type Verifier struct {
 	verifyProposalFn app.VerifyProposal
 }
 
-func NewVerifier(namespace []byte, height uint64, group group.Group, hasher crypto.Hash, verifyProposalFn app.VerifyProposal) *Verifier {
+func NewVerifier(namespace []byte, height uint64, hasher crypto.Hash) *Verifier {
 	return &Verifier{
-		height:           height,
-		namespace:        namespace,
-		group:            group,
-		hasher:           hasher,
-		verifyProposalFn: verifyProposalFn,
+		height:    height,
+		namespace: namespace,
+		hasher:    hasher,
 	}
 }
 
-func (v *Verifier) Update(group group.Group, height uint64) {
+func (v *Verifier) Update(group group.Group, verifyProposalFn app.VerifyProposal) {
 	v.group = group
-	v.height = height
+	v.verifyProposalFn = verifyProposalFn
 }
 
 func (v *Verifier) GetProposer(round uint32) group.Member {

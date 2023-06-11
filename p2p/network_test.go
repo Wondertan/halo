@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cmwaters/halo/consensus"
-	"github.com/cmwaters/halo/network"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
@@ -212,11 +211,11 @@ func RandBytes(n int) []byte {
 	return bs
 }
 
-func setupP2PNetworks(ctx context.Context, t *testing.T, n int) []network.Network {
+func setupP2PNetworks(ctx context.Context, t *testing.T, n int) []consensus.Network {
 	mn, err := mocknet.FullMeshLinked(n)
 	require.NoError(t, err)
 
-	nets := make([]network.Network, n)
+	nets := make([]consensus.Network, n)
 	for i := range nets {
 		ps, err := pubsub.NewGossipSub(ctx, mn.Hosts()[i])
 		require.NoError(t, err)
